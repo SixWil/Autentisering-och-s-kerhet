@@ -2,10 +2,14 @@
 import express from "express";
 import bodyParser from "body-parser";
 import pg from "pg";
+import bcrypt from "bcrypt"
 
 // Startar en server
 const app = express();
 const port = 3000;
+
+const saltRounds = 10;
+
 const db = new pg.Pool({
   user: "postgres",
   host: "localhost",
@@ -56,12 +60,15 @@ app.post("/register", async (req, res) => {
       console.log("Användaren finns redan");
     }
     else {
-      const result = await db.query(
-        "INSERT INTO users (email, password) VALUES ($1, $2)",
-        [email, password]
-      );
+      bcrypt.hash(password, saltRounds, async (err, hash) => {
 
-      console.log(result);
+        const result = await db.query(
+          "INSERT INTO users (email, password) VALUES ($1, $2)",
+          [email, hash]
+        );
+      });
+
+      // console.log(result);
       res.render("secrets.ejs");
     }
 
@@ -79,10 +86,10 @@ app.post("/login", async (req, res) => {
     const search = await db.query(
 
       "SELECT * FROM users WHERE email = $1",
-      [email] // Ger [] om användaren inte finns
+      [email] /// Ger [] om användaren inte finns
 
     );
-    
+
     console.log(search.rows);
     // console.log(search.rows.toString());
     console.log(search.rows.length);
@@ -95,18 +102,20 @@ app.post("/login", async (req, res) => {
 
       const användare = search.rows[0];
       const lösenord = användare.password;
-      
-      if (password === lösenord) {res.render("secrets.ejs");}
-        else {
-        EpostError = "";
-        LösenordError_a = "Fel";
-        LösenordError_b = "för den e-postadressen";
-        
-        Epost = email;
-        lösen = password;
-        res.redirect("/login");
-      }
 
+      bcrypt.compare(password, lösenord, (err, result) => {
+
+        if (result == true) { res.render("secrets.ejs"); }
+        else {
+          EpostError = "";
+          LösenordError_a = "Fel";
+          LösenordError_b = "för den e-postadressen";
+
+          Epost = email;
+          lösen = password;
+          res.redirect("/login");
+        }
+      })
     }
     else {
       EpostError = "hittas inte";
